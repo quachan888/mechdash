@@ -1,0 +1,134 @@
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-musl-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String?
+  firstName     String?
+  lastName      String?
+  username      String?   @unique
+  role          String    @default("user")
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  roRecords     RoRecord[]
+  hourlyRates   HourlyRate[]
+  uploadHistory UploadHistory[]
+  paychecks     Paycheck[]
+}
+
+model RoRecord {
+  id                 String      @id @default(cuid())
+  roNumber           String
+  roCompletedDate    DateTime
+  vehicleYear        Int?
+  vehicleMake        String?
+  vehicleModel       String?
+  vehicleTrim        String?
+  vehicleDescription String?
+  billedHours        Float       @default(0)
+  laborSale          Float       @default(0)
+  partsSale          Float       @default(0)
+  subletSale         Float       @default(0)
+  customerName       String?
+  customerNumber     String?
+  jobDescriptions    String?     @db.Text
+  totalSale          Float       @default(0)
+  userId             String?
+  user               User?       @relation(fields: [userId], references: [id])
+  jobLines           RoJobLine[]
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@unique([roNumber, vehicleDescription, roCompletedDate, userId], name: "ro_vehicle_date_user")
+  @@index([roCompletedDate])
+  @@index([vehicleMake])
+  @@index([vehicleModel])
+  @@index([userId])
+}
+
+model RoJobLine {
+  id               String    @id @default(cuid())
+  roRecordId       String
+  roRecord         RoRecord  @relation(fields: [roRecordId], references: [id], onDelete: Cascade)
+
+  lineNumber       Int?
+  jobDescription   String?   @db.Text
+  billedHours      Float     @default(0)
+  laborSale        Float     @default(0)
+  partsSale        Float     @default(0)
+  subletSale       Float     @default(0)
+  totalSale        Float     @default(0)
+
+  appliedRate      Float     @default(0)
+  earnedAmount     Float     @default(0)
+
+  customerName     String?
+  customerNumber   String?
+  roCompletedDate  DateTime
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([roRecordId])
+  @@index([roCompletedDate])
+}
+
+model HourlyRate {
+  id            String   @id @default(cuid())
+  rate          Float
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  description   String?
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([effectiveFrom])
+  @@index([userId])
+}
+
+model UploadHistory {
+  id            String   @id @default(cuid())
+  fileName      String
+  totalRows     Int      @default(0)
+  newRecords    Int      @default(0)
+  duplicates    Int      @default(0)
+  errors        Int      @default(0)
+  status        String   @default("completed")
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  uploadedAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Paycheck {
+  id            String   @id @default(cuid())
+  weekNumber    Int
+  year          Int
+  paycheckDate  DateTime
+  grossPay      Float    @default(0)
+  netPay        Float    @default(0)
+  hoursReceived Float    @default(0)
+  notes         String?
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([weekNumber, year, userId], name: "week_year_user")
+  @@index([year])
+  @@index([userId])
+}

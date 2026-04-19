@@ -1,0 +1,53 @@
+services:
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    container_name: mechdash-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mechdash
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-MySecurePassword123}
+      POSTGRES_DB: mechdash
+    volumes:
+      - mechdash-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mechdash -d mechdash"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Uncomment to access the DB from your host machine:
+    # ports:
+    #   - "5432:5432"
+
+  # MechDash Next.js app
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mechdash-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Database credentials (password passed separately to avoid URL-encoding issues)
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: mechdash
+      DB_PASSWORD: ${DB_PASSWORD:-MySecurePassword123}
+      DB_NAME: mechdash
+      # Auth
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-please_change_this_to_a_random_string_32chars_or_more}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      # Initial admin user
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@mechdash.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123456}
+      # Optional AI service for PDF export
+      ABACUSAI_API_KEY: ${ABACUSAI_API_KEY:-}
+    ports:
+      - "3000:3000"
+
+volumes:
+  mechdash-db-data:
+    driver: local
