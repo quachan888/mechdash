@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { DollarSign, Plus, Trash2, Save, Loader2, User, Lock } from 'lucide-react';
+import { DollarSign, Plus, Trash2, Save, Loader2, User, Lock, Download, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface HourlyRate {
@@ -27,16 +27,31 @@ export default function SettingsClient() {
   const [rates, setRates] = useState<HourlyRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newRate, setNewRate] = useState({ rate: '', effectiveFrom: '', effectiveTo: '', description: '' });
+  const [newRate, setNewRate] = useState({
+    rate: '',
+    effectiveFrom: '',
+    effectiveTo: '',
+    description: '',
+  });
 
-  // Profile state
-  const [profile, setProfile] = useState<UserProfile>({ firstName: '', lastName: '', username: '', email: '', name: '' });
+  const [profile, setProfile] = useState<UserProfile>({
+    firstName: '',
+    lastName: '',
+    username: '',
+    email: '',
+    name: '',
+  });
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileSaving, setProfileSaving] = useState(false);
 
-  // Password state
-  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [passwords, setPasswords] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
   const [passwordSaving, setPasswordSaving] = useState(false);
+
+  const [backupBusy, setBackupBusy] = useState(false);
 
   const fetchRates = useCallback(async () => {
     try {
@@ -70,13 +85,17 @@ export default function SettingsClient() {
     }
   }, []);
 
-  useEffect(() => { fetchRates(); fetchProfile(); }, [fetchRates, fetchProfile]);
+  useEffect(() => {
+    fetchRates();
+    fetchProfile();
+  }, [fetchRates, fetchProfile]);
 
   const addRate = useCallback(async () => {
     if (!newRate?.rate || !newRate?.effectiveFrom) {
       toast.error('Rate and start date are required');
       return;
     }
+
     setSaving(true);
     try {
       const res = await fetch('/api/rates', {
@@ -89,6 +108,7 @@ export default function SettingsClient() {
           description: newRate.description || null,
         }),
       });
+
       if (res?.ok) {
         toast.success('Rate added!');
         setNewRate({ rate: '', effectiveFrom: '', effectiveTo: '', description: '' });
@@ -106,11 +126,14 @@ export default function SettingsClient() {
 
   const deleteRate = useCallback(async (id: string) => {
     if (!confirm('Delete this rate?')) return;
+
     try {
       const res = await fetch(`/api/rates?id=${id}`, { method: 'DELETE' });
       if (res?.ok) {
         toast.success('Rate deleted');
         fetchRates();
+      } else {
+        toast.error('Failed to delete rate');
       }
     } catch {
       toast.error('Failed to delete rate');
@@ -126,6 +149,7 @@ export default function SettingsClient() {
         body: JSON.stringify(profile),
       });
       const data = await res?.json?.();
+
       if (res?.ok) {
         toast.success('Profile updated!');
       } else {
@@ -135,6 +159,49 @@ export default function SettingsClient() {
       toast.error('Failed to update profile');
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const handleImportBackup = async (file: File) => {
+    setBackupBusy(true);
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+
+      const res = await fetch('/api/backup/import', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(json),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Import failed');
+      }
+
+      toast.success('Backup imported successfully');
+      setTimeout(() => {
+        window.location.reload();
+      }, 800);
+    } catch (err: any) {
+      toast.error(err?.message || 'Import failed');
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const handleExportBackup = async () => {
+    setBackupBusy(true);
+    try {
+      window.location.href = '/api/backup/export';
+      toast.success('Backup export started');
+    } catch {
+      toast.error('Export failed');
+    } finally {
+      setTimeout(() => setBackupBusy(false), 500);
     }
   };
 
@@ -151,6 +218,7 @@ export default function SettingsClient() {
       toast.error('New password must be at least 6 characters');
       return;
     }
+
     setPasswordSaving(true);
     try {
       const res = await fetch('/api/profile/password', {
@@ -161,7 +229,9 @@ export default function SettingsClient() {
           newPassword: passwords.newPassword,
         }),
       });
+
       const data = await res?.json?.();
+
       if (res?.ok) {
         toast.success('Password changed!');
         setPasswords({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -175,16 +245,23 @@ export default function SettingsClient() {
     }
   };
 
-  if (loading || profileLoading) return <div className="p-6 flex items-center justify-center h-64"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>;
+  if (loading || profileLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center h-64">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-3 sm:p-6 space-y-6 max-w-3xl mx-auto">
       <div>
         <h1 className="text-xl sm:text-2xl font-bold text-[#1e3a5f]">Settings</h1>
-        <p className="text-muted-foreground text-xs sm:text-sm">Manage your profile, password, and hourly rates</p>
+        <p className="text-muted-foreground text-xs sm:text-sm">
+          Manage your profile, password, hourly rates, and backup
+        </p>
       </div>
 
-      {/* User Profile */}
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -227,14 +304,22 @@ export default function SettingsClient() {
               />
             </div>
           </div>
-          <Button onClick={saveProfile} className="bg-[#1e3a5f] hover:bg-[#2a4d7a]" disabled={profileSaving}>
-            {profileSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+
+          <Button
+            onClick={saveProfile}
+            className="bg-[#1e3a5f] hover:bg-[#2a4d7a]"
+            disabled={profileSaving}
+          >
+            {profileSaving ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-1" />
+            )}
             Save Profile
           </Button>
         </CardContent>
       </Card>
 
-      {/* Change Password */}
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -271,18 +356,26 @@ export default function SettingsClient() {
               />
             </div>
           </div>
-          <Button onClick={changePassword} className="bg-amber-600 hover:bg-amber-700 text-white" disabled={passwordSaving}>
-            {passwordSaving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Lock className="h-4 w-4 mr-1" />}
+
+          <Button
+            onClick={changePassword}
+            className="bg-amber-600 hover:bg-amber-700 text-white"
+            disabled={passwordSaving}
+          >
+            {passwordSaving ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Lock className="h-4 w-4 mr-1" />
+            )}
             Change Password
           </Button>
         </CardContent>
       </Card>
 
-      {/* Hourly Rates */}
       <Card className="shadow-md">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-green-500" />Hourly Rates
+            <DollarSign className="h-5 w-5 text-green-500" /> Hourly Rates
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -292,7 +385,11 @@ export default function SettingsClient() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-lg">${r?.rate?.toFixed?.(2) ?? '0.00'}/hr</span>
-                    {r?.description && <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">{r.description}</span>}
+                    {r?.description && (
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                        {r.description}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {r?.effectiveFrom ? new Date(r.effectiveFrom).toLocaleDateString() : 'N/A'}
@@ -305,7 +402,9 @@ export default function SettingsClient() {
                 </Button>
               </div>
             ))}
-            {(rates?.length ?? 0) === 0 && <p className="text-sm text-muted-foreground text-center py-4">No rates configured</p>}
+            {(rates?.length ?? 0) === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No rates configured</p>
+            )}
           </div>
 
           <div className="border-t pt-4">
@@ -346,10 +445,64 @@ export default function SettingsClient() {
                 />
               </div>
             </div>
-            <Button onClick={addRate} className="mt-3 bg-[#1e3a5f] hover:bg-[#2a4d7a]" disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+
+            <Button
+              onClick={addRate}
+              className="mt-3 bg-[#1e3a5f] hover:bg-[#2a4d7a]"
+              disabled={saving}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1" />
+              )}
               Add Rate
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="shadow-md">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            Backup &amp; Restore
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Export all repair orders, job details, earnings, and hourly rate history.
+            Import the backup file on another server to restore everything.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button variant="outline" onClick={handleExportBackup} disabled={backupBusy}>
+              {backupBusy ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-1" />
+              )}
+              Export Full Backup
+            </Button>
+
+            <label className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-muted">
+              {backupBusy ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-1" />
+              )}
+              Import Full Backup
+              <input
+                type="file"
+                accept=".json,application/json"
+                hidden
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  await handleImportBackup(file);
+                  e.currentTarget.value = '';
+                }}
+              />
+            </label>
           </div>
         </CardContent>
       </Card>

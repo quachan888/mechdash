@@ -1,12 +1,4 @@
-node_modules/
-.next/
-dist/
-build/
-coverage/
+node_modules
+.next
 .env
-.env.local
-*.log
-.DS_Store
-docker-data/
-uploads/
-tmp/
+data/dashboard-data.json
