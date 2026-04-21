@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Save, Trash2, DollarSign, Clock, AlertCircle, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { format } from 'date-fns';
 
 interface WeekData {
   week: number;
@@ -28,6 +27,19 @@ interface Props {
   paychecks: Paycheck[];
   currentYear: number;
   availableYears: number[];
+}
+
+function getDateKey(value: string) {
+  const match = value?.match?.(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? '';
+}
+
+function formatDateKey(value: string) {
+  const dateKey = getDateKey(value);
+  if (!dateKey) return '';
+
+  const [year, month, day] = dateKey.split('-');
+  return `${month}/${day}/${year}`;
 }
 
 export default function PaychecksClient({ weeklyDataByYear, paychecks, currentYear, availableYears }: Props) {
@@ -61,7 +73,7 @@ export default function PaychecksClient({ weeklyDataByYear, paychecks, currentYe
     const existing = paycheckMap.get(week);
     if (existing) {
       setForm({
-        paycheckDate: existing.paycheckDate ? format(new Date(existing.paycheckDate), 'yyyy-MM-dd') : '',
+        paycheckDate: getDateKey(existing.paycheckDate),
         grossPay: String(existing.grossPay ?? ''),
         netPay: String(existing.netPay ?? ''),
         hoursReceived: String(existing.hoursReceived ?? ''),
@@ -214,7 +226,7 @@ export default function PaychecksClient({ weeklyDataByYear, paychecks, currentYe
                       <td className="py-1.5 px-2 sm:px-3 font-medium">W{w.week}</td>
                       <td className="py-1.5 px-2 sm:px-3 text-right font-medium">{w.hours > 0 ? w.hours.toFixed(1) : '\u2014'}</td>
                       <td className="py-1.5 px-2 sm:px-3 text-center hidden sm:table-cell">
-                        {pc ? format(new Date(pc.paycheckDate), 'MM/dd/yyyy') : '\u2014'}
+                        {pc ? formatDateKey(pc.paycheckDate) : '\u2014'}
                       </td>
                       <td className="py-1.5 px-2 sm:px-3 text-right">
                         {pc ? `$${pc.grossPay.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '\u2014'}

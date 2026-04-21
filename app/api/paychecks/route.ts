@@ -4,6 +4,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUserId } from '@/lib/get-user';
 
+function parsePaycheckDate(value: unknown) {
+  if (!value || typeof value !== 'string') return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date = new Date(`${value}T12:00:00.000Z`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -36,12 +47,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'weekNumber, year, and paycheckDate are required' }, { status: 400 });
     }
 
+    const parsedPaycheckDate = parsePaycheckDate(paycheckDate);
+    if (!parsedPaycheckDate) {
+      return NextResponse.json({ error: 'Valid paycheckDate is required' }, { status: 400 });
+    }
+
     const paycheck = await prisma.paycheck.upsert({
       where: { week_year_user: { weekNumber: Number(weekNumber), year: Number(year), userId } },
       create: {
         weekNumber: Number(weekNumber),
         year: Number(year),
-        paycheckDate: new Date(paycheckDate),
+        paycheckDate: parsedPaycheckDate,
         grossPay: Number(grossPay ?? 0),
         netPay: Number(netPay ?? 0),
         hoursReceived: Number(hoursReceived ?? 0),
@@ -49,7 +65,7 @@ export async function POST(req: NextRequest) {
         userId,
       },
       update: {
-        paycheckDate: new Date(paycheckDate),
+        paycheckDate: parsedPaycheckDate,
         grossPay: Number(grossPay ?? 0),
         netPay: Number(netPay ?? 0),
         hoursReceived: Number(hoursReceived ?? 0),
