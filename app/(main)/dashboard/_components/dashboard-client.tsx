@@ -96,10 +96,11 @@ function getQuickRangeDates(range: QuickRange): { from: string; to: string } {
 }
 
 export default function DashboardClient({ records, rates }: { records: RoRecord[]; rates: HourlyRate[] }) {
+  const initialDateRange = getQuickRangeDates('this_month');
   const [chartGranularity, setChartGranularity] = useState<ChartGranularity>('day');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [quickRange, setQuickRange] = useState<QuickRange>('');
+  const [dateFrom, setDateFrom] = useState(initialDateRange.from);
+  const [dateTo, setDateTo] = useState(initialDateRange.to);
+  const [quickRange, setQuickRange] = useState<QuickRange>('this_month');
 
   const handleQuickRange = (val: QuickRange) => {
     setQuickRange(val);
