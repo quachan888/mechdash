@@ -21,7 +21,7 @@ async function seedDefaultRate(userId: string) {
 }
 
 async function main() {
-  const adminEmail = process.env.ADMIN_EMAIL || 'admin@mechdash.local';
+  const adminEmail = process.env.ADMIN_EMAIL || 'quachan888@gmail.com';
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123456';
 
   const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
