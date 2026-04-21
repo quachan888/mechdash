@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { DollarSign, Plus, Trash2, Save, Loader2, User, Lock, Download, Upload } from 'lucide-react';
+import { DollarSign, Plus, Trash2, Save, Loader2, User, Lock, Pencil, X } from 'lucide-react';
 import { toast } from 'sonner';
+import SettingsBackupCard from './settings-backup-card';
 
 interface HourlyRate {
   id: string;
@@ -23,11 +24,34 @@ interface UserProfile {
   name: string;
 }
 
+interface RateForm {
+  rate: string;
+  effectiveFrom: string;
+  effectiveTo: string;
+  description: string;
+}
+
+function toDateInputValue(value: string | null | undefined) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  return date.toISOString().slice(0, 10);
+}
+
 export default function SettingsClient() {
   const [rates, setRates] = useState<HourlyRate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [newRate, setNewRate] = useState({
+  const [editingRateId, setEditingRateId] = useState<string | null>(null);
+  const [editingRate, setEditingRate] = useState<RateForm>({
+    rate: '',
+    effectiveFrom: '',
+    effectiveTo: '',
+    description: '',
+  });
+  const [rateUpdating, setRateUpdating] = useState(false);
+  const [newRate, setNewRate] = useState<RateForm>({
     rate: '',
     effectiveFrom: '',
     effectiveTo: '',
@@ -50,8 +74,6 @@ export default function SettingsClient() {
     confirmPassword: '',
   });
   const [passwordSaving, setPasswordSaving] = useState(false);
-
-  const [backupBusy, setBackupBusy] = useState(false);
 
   const fetchRates = useCallback(async () => {
     try {
@@ -124,6 +146,64 @@ export default function SettingsClient() {
     }
   }, [newRate, fetchRates]);
 
+  const startEditingRate = useCallback((rate: HourlyRate) => {
+    setEditingRateId(rate.id);
+    setEditingRate({
+      rate: String(rate.rate ?? ''),
+      effectiveFrom: toDateInputValue(rate.effectiveFrom),
+      effectiveTo: toDateInputValue(rate.effectiveTo),
+      description: rate.description ?? '',
+    });
+  }, []);
+
+  const cancelEditingRate = useCallback(() => {
+    setEditingRateId(null);
+    setEditingRate({ rate: '', effectiveFrom: '', effectiveTo: '', description: '' });
+  }, []);
+
+  const saveRate = useCallback(async () => {
+    if (!editingRateId) return;
+
+    const rateAmount = parseFloat(editingRate.rate);
+    if (!Number.isFinite(rateAmount) || rateAmount < 0 || !editingRate.effectiveFrom) {
+      toast.error('Valid rate and start date are required');
+      return;
+    }
+
+    if (editingRate.effectiveTo && editingRate.effectiveTo < editingRate.effectiveFrom) {
+      toast.error('End date must be after start date');
+      return;
+    }
+
+    setRateUpdating(true);
+    try {
+      const res = await fetch('/api/rates', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingRateId,
+          rate: rateAmount,
+          effectiveFrom: editingRate.effectiveFrom,
+          effectiveTo: editingRate.effectiveTo || null,
+          description: editingRate.description || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to update rate');
+      }
+
+      toast.success('Rate updated');
+      cancelEditingRate();
+      fetchRates();
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update rate');
+    } finally {
+      setRateUpdating(false);
+    }
+  }, [editingRate, editingRateId, cancelEditingRate, fetchRates]);
+
   const deleteRate = useCallback(async (id: string) => {
     if (!confirm('Delete this rate?')) return;
 
@@ -159,49 +239,6 @@ export default function SettingsClient() {
       toast.error('Failed to update profile');
     } finally {
       setProfileSaving(false);
-    }
-  };
-
-  const handleImportBackup = async (file: File) => {
-    setBackupBusy(true);
-    try {
-      const text = await file.text();
-      const json = JSON.parse(text);
-
-      const res = await fetch('/api/backup/import', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(json),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || 'Import failed');
-      }
-
-      toast.success('Backup imported successfully');
-      setTimeout(() => {
-        window.location.reload();
-      }, 800);
-    } catch (err: any) {
-      toast.error(err?.message || 'Import failed');
-    } finally {
-      setBackupBusy(false);
-    }
-  };
-
-  const handleExportBackup = async () => {
-    setBackupBusy(true);
-    try {
-      window.location.href = '/api/backup/export';
-      toast.success('Backup export started');
-    } catch {
-      toast.error('Export failed');
-    } finally {
-      setTimeout(() => setBackupBusy(false), 500);
     }
   };
 
@@ -380,8 +417,69 @@ export default function SettingsClient() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            {(rates ?? []).map((r: HourlyRate) => (
-              <div key={r?.id} className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+            {(rates ?? []).map((r: HourlyRate) => {
+              const isEditing = editingRateId === r.id;
+
+              if (isEditing) {
+                return (
+                  <div key={r?.id} className="bg-muted/50 rounded-lg p-3 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Rate ($/hr)</label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editingRate.rate}
+                          onChange={(e) => setEditingRate((p) => ({ ...p, rate: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Description</label>
+                        <Input
+                          value={editingRate.description}
+                          onChange={(e) => setEditingRate((p) => ({ ...p, description: e.target.value }))}
+                          placeholder="Standard rate"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Effective From</label>
+                        <Input
+                          type="date"
+                          value={editingRate.effectiveFrom}
+                          onChange={(e) => setEditingRate((p) => ({ ...p, effectiveFrom: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Effective To (blank = ongoing)</label>
+                        <Input
+                          type="date"
+                          value={editingRate.effectiveTo}
+                          onChange={(e) => setEditingRate((p) => ({ ...p, effectiveTo: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button size="sm" onClick={saveRate} disabled={rateUpdating}>
+                        {rateUpdating ? (
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4 mr-1" />
+                        )}
+                        Save Rate
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={cancelEditingRate} disabled={rateUpdating}>
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={r?.id} className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
                     <span className="font-bold text-lg">${r?.rate?.toFixed?.(2) ?? '0.00'}/hr</span>
@@ -397,11 +495,17 @@ export default function SettingsClient() {
                     {r?.effectiveTo ? new Date(r.effectiveTo).toLocaleDateString() : 'Ongoing'}
                   </p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => deleteRate(r?.id)}>
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => startEditingRate(r)}>
+                    <Pencil className="h-4 w-4 text-sky-600" />
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => deleteRate(r?.id)}>
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                </div>
               </div>
-            ))}
+              );
+            })}
             {(rates?.length ?? 0) === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">No rates configured</p>
             )}
@@ -462,50 +566,7 @@ export default function SettingsClient() {
         </CardContent>
       </Card>
 
-      <Card className="shadow-md">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            Backup &amp; Restore
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Export all repair orders, job details, earnings, and hourly rate history.
-            Import the backup file on another server to restore everything.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button variant="outline" onClick={handleExportBackup} disabled={backupBusy}>
-              {backupBusy ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Download className="h-4 w-4 mr-1" />
-              )}
-              Export Full Backup
-            </Button>
-
-            <label className="inline-flex items-center justify-center rounded-md border px-3 py-2 text-sm cursor-pointer hover:bg-muted">
-              {backupBusy ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4 mr-1" />
-              )}
-              Import Full Backup
-              <input
-                type="file"
-                accept=".json,application/json"
-                hidden
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  await handleImportBackup(file);
-                  e.currentTarget.value = '';
-                }}
-              />
-            </label>
-          </div>
-        </CardContent>
-      </Card>
+      <SettingsBackupCard />
     </div>
   );
 }

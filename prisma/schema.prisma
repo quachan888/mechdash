@@ -70,8 +70,8 @@ model RoJobLine {
   subletSale       Float     @default(0)
   totalSale        Float     @default(0)
 
-  appliedRate      Float     @default(0)
-  earnedAmount     Float     @default(0)
+  appliedRate      Float     @default(0) @ignore
+  earnedAmount     Float     @default(0) @ignore
 
   customerName     String?
   customerNumber   String?

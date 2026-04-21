@@ -52,9 +52,14 @@ interface RoRecord {
   customerName: string | null;
   jobDescriptions: string | null;
   jobLines: RoJobLine[];
+  earnedAmount: number;
 }
 
 function getRoEarned(record: RoRecord): number {
+  if (typeof record.earnedAmount === 'number') {
+    return record.earnedAmount;
+  }
+
   return (record.jobLines ?? []).reduce(
     (sum, line) => sum + (line.earnedAmount ?? 0),
     0
@@ -130,8 +135,8 @@ export default function RecordsClient() {
     if (dateTo) result = result.filter((r: RoRecord) => (r?.roCompletedDate ?? '').slice(0, 10) <= dateTo);
 
     result.sort((a: any, b: any) => {
-      const aVal = a?.[sortField] ?? '';
-      const bVal = b?.[sortField] ?? '';
+      const aVal = sortField === 'earnedAmount' ? getRoEarned(a) : a?.[sortField] ?? '';
+      const bVal = sortField === 'earnedAmount' ? getRoEarned(b) : b?.[sortField] ?? '';
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
       }
@@ -446,10 +451,7 @@ export default function RecordsClient() {
                 <div className="rounded-lg border p-3">
                   <div className="text-xs text-muted-foreground">RO Total Earn</div>
                   <div className="font-medium">
-                    $
-                    {(selectedRecord.jobLines ?? [])
-                      .reduce((sum, line) => sum + (line.earnedAmount ?? 0), 0)
-                      .toFixed(2)}
+                    ${getRoEarned(selectedRecord).toFixed(2)}
                   </div>
                 </div>
               </div>

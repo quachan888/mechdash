@@ -3,13 +3,32 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+async function seedDefaultRate(userId: string) {
+  const existingRateCount = await prisma.hourlyRate.count({ where: { userId } });
+  if (existingRateCount > 0) {
+    return;
+  }
+
+  await prisma.hourlyRate.create({
+    data: {
+      userId,
+      rate: 45.0,
+      effectiveFrom: new Date('2025-01-01T12:00:00.000Z'),
+      effectiveTo: null,
+      description: 'Standard rate',
+    },
+  });
+}
+
 async function main() {
   const adminEmail = process.env.ADMIN_EMAIL || 'admin@mechdash.local';
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123456';
 
   const existing = await prisma.user.findUnique({ where: { email: adminEmail } });
   if (existing) {
-    console.log(`✓ Admin user already exists: ${adminEmail}`);
+    await seedDefaultRate(existing.id);
+    console.log(`Admin user already exists: ${adminEmail}`);
+    console.log('Default admin hourly rate ensured');
     return;
   }
 
@@ -26,17 +45,10 @@ async function main() {
     },
   });
 
-  await prisma.hourlyRate.create({
-    data: {
-      userId: admin.id,
-      rate: 45.0,
-      effectiveFrom: new Date('2020-01-01'),
-      description: 'Default rate',
-    },
-  });
+  await seedDefaultRate(admin.id);
 
-  console.log(`✓ Created admin user: ${adminEmail}`);
-  console.log(`✓ Default hourly rate created: $45/hr`);
+  console.log(`Created admin user: ${adminEmail}`);
+  console.log('Default admin hourly rate created');
 }
 
 main()

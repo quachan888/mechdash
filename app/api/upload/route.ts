@@ -5,7 +5,6 @@ import { prisma } from '@/lib/prisma';
 import { parseCsv, CsvRow } from '@/lib/csv-parser';
 import { parseVehicleDescription } from '@/lib/vehicle-parser';
 import { getCurrentUserId } from '@/lib/get-user';
-import { getHourlyRateForDate } from '@/lib/earnings';
 
 interface JobLineInput {
   lineNumber: number;
@@ -140,7 +139,6 @@ export async function POST(request: Request) {
         }
 
         const vehicle = parseVehicleDescription(agg.vehicleDescription);
-        const appliedRate = await getHourlyRateForDate(agg.roCompletedDate, userId);
 
         const totalBilledHours = agg.lines.reduce((sum, line) => sum + line.billedHours, 0);
         const totalLaborSale = agg.lines.reduce((sum, line) => sum + line.laborSale, 0);
@@ -173,7 +171,6 @@ export async function POST(request: Request) {
             jobLines: {
               create: agg.lines.map((line) => {
                 const lineTotalSale = line.laborSale + line.partsSale + line.subletSale;
-                const earnedAmount = line.billedHours * appliedRate;
 
                 return {
                   lineNumber: line.lineNumber,
@@ -183,8 +180,6 @@ export async function POST(request: Request) {
                   partsSale: line.partsSale,
                   subletSale: line.subletSale,
                   totalSale: lineTotalSale,
-                  appliedRate,
-                  earnedAmount,
                   customerName: line.customerName || null,
                   customerNumber: line.customerNumber || null,
                   roCompletedDate: agg.roCompletedDate,

@@ -130,12 +130,14 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Create default hourly rates
-    await prisma.hourlyRate.createMany({
-      data: [
-        { rate: 45, effectiveFrom: new Date('2024-01-01'), description: 'Default Rate', userId: user.id },
-        { rate: 50, effectiveFrom: new Date('2025-01-01'), description: 'Current Rate', userId: user.id },
-      ],
+    await prisma.hourlyRate.create({
+      data: {
+        rate: 45,
+        effectiveFrom: new Date('2025-01-01T12:00:00.000Z'),
+        effectiveTo: null,
+        description: 'Standard rate',
+        userId: user.id,
+      },
     });
 
     return NextResponse.json({ user: { id: user.id, email: user.email, name: user.name } });
