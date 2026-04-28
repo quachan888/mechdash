@@ -28,7 +28,6 @@
 
 ![Settings](./docs/screenshots/settings.png)
 
-> 📌 Tip: Create `/docs/screenshots/` folder and drop images there.
 
 ---
 
