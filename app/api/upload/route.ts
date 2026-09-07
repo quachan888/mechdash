@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const csvText = body?.csvText ?? '';
     const fileName = body?.fileName ?? 'upload.csv';
+    const overrideDuplicates = Boolean(body?.overrideDuplicates ?? false);
 
     if (!csvText) {
       return NextResponse.json({ error: 'No CSV data provided' }, { status: 400 });
@@ -79,8 +80,6 @@ export async function POST(request: Request) {
       const custNum =
         findColumn(row, ['Customer Number', 'Cust #', 'Customer #', 'Cust Number'])?.trim?.() ?? '';
       const jobDesc = (row['Job'] ?? '').toString().trim();
-
-  
 
       if (!roNum || !dateStr) continue;
 
@@ -120,6 +119,7 @@ export async function POST(request: Request) {
 
     let newRecords = 0;
     let duplicates = 0;
+    let overwritten = 0;
     let errors = 0;
 
     for (const [, agg] of roMap) {
@@ -133,9 +133,16 @@ export async function POST(request: Request) {
           },
         });
 
-        if (existing) {
+        if (existing && !overrideDuplicates) {
           duplicates++;
           continue;
+        }
+
+        if (existing && overrideDuplicates) {
+          await prisma.roRecord.delete({
+            where: { id: existing.id },
+          });
+          overwritten++;
         }
 
         const vehicle = parseVehicleDescription(agg.vehicleDescription);
@@ -208,7 +215,7 @@ export async function POST(request: Request) {
       },
     });
 
-    return NextResponse.json({ totalRows, newRecords, duplicates, errors });
+    return NextResponse.json({ totalRows, newRecords, duplicates, overwritten, errors });
   } catch (err: any) {
     console.error('Upload error:', err);
     return NextResponse.json({ error: err?.message ?? 'Upload failed' }, { status: 500 });

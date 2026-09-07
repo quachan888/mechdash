@@ -3,12 +3,13 @@
 import { useState, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, AlertTriangle, Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function UploadClient() {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [overrideDuplicates, setOverrideDuplicates] = useState(false);
   const [result, setResult] = useState<any>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -25,12 +26,17 @@ export default function UploadClient() {
       const res = await fetch('/api/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ csvText: text, fileName: file?.name ?? 'upload.csv' }),
+        body: JSON.stringify({
+          csvText: text,
+          fileName: file?.name ?? 'upload.csv',
+          overrideDuplicates,
+        }),
       });
       const data = await res?.json?.();
       if (res?.ok) {
         setResult(data);
-        toast.success(`Upload complete! ${data?.newRecords ?? 0} new records added.`);
+        const action = overrideDuplicates ? 'replaced and reimported' : 'added';
+        toast.success(`Upload complete! ${data?.newRecords ?? 0} records ${action}.`);
       } else {
         toast.error(data?.error ?? 'Upload failed');
       }
@@ -39,7 +45,7 @@ export default function UploadClient() {
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [overrideDuplicates]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -57,6 +63,19 @@ export default function UploadClient() {
 
       <Card className="shadow-md">
         <CardContent className="p-8">
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            <label htmlFor="override-duplicates" className="flex cursor-pointer items-center gap-3">
+              <input
+                id="override-duplicates"
+                type="checkbox"
+                checked={overrideDuplicates}
+                onChange={(e) => setOverrideDuplicates(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-500"
+              />
+              <span>Override duplicate records and re-import them</span>
+            </label>
+          </div>
+
           <div
             onDragOver={(e: React.DragEvent) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
@@ -95,10 +114,11 @@ export default function UploadClient() {
         <Card className="shadow-md">
           <CardHeader><CardTitle className="text-base">Upload Results</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <StatBox icon={<FileText className="h-5 w-5 text-blue-500" />} label="Total Rows" value={String(result?.totalRows ?? 0)} />
               <StatBox icon={<CheckCircle className="h-5 w-5 text-green-500" />} label="New Records" value={String(result?.newRecords ?? 0)} />
               <StatBox icon={<AlertTriangle className="h-5 w-5 text-amber-500" />} label="Duplicates" value={String(result?.duplicates ?? 0)} />
+              <StatBox icon={<RefreshCw className="h-5 w-5 text-violet-500" />} label="Replaced" value={String(result?.overwritten ?? 0)} />
               <StatBox icon={<XCircle className="h-5 w-5 text-red-500" />} label="Errors" value={String(result?.errors ?? 0)} />
             </div>
           </CardContent>
